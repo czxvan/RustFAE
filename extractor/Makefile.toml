@@ -1,0 +1,11 @@
+# Makefile.toml
+[tasks.build]
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.install]
+command = "cargo"
+args = ["install", "--path", "."]
+
+[tasks.all]
+depends = ["build", "install"]

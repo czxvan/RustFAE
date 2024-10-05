@@ -1,0 +1,3 @@
+outputs/
+*.qcow2
+target/
