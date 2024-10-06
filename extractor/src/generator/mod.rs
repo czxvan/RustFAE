@@ -1,11 +1,16 @@
+
 use std::process::{Command, exit};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs;
+
+pub mod utils;
+use utils::*;
 use crate::ImageType;
 
+
 pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
-    let image_path = get_unique_file_name(image);
-    let image = image_path.to_str().unwrap();
+    // let image_path = get_unique_file_name(image);
+    // let image = image_path.to_str().unwrap();
 
     let nbd_device = find_first_unused_nbd()
                 .expect("Failed to find any unused nbd device!");
@@ -97,9 +102,10 @@ pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
             }
 
             // Create partition for nbd device, must be bash not sh
+            // must use dos rather than gpt partition
             let output = Command::new("bash")
                 .arg("-c")
-                .arg(format!("echo -e 'g\\nn\\n\\n\\n\\nw' | sudo fdisk {}", &nbd_device))
+                .arg(format!("echo -e 'o\\nn\\np\\n1\\n\\n\\nw' | sudo fdisk {}", &nbd_device))
                 .output();
             match output {
                 Ok(output) if output.status.success() => {
@@ -117,8 +123,9 @@ pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
             }
             
             // Make file system for partition 1 of the nbd device
+            // better to use ext2, ext4 may fail when boot with qemu
             let output = Command::new("sudo")
-                .args(&["mkfs.ext4", &format!("{}p1", &nbd_device)])
+                .args(&["mkfs.ext2", &format!("{}p1", &nbd_device)])
                 .output();
             match output {
                 Ok(output) if output.status.success() => {
@@ -179,132 +186,18 @@ pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
     }
 
     // Copy files into the mounted image
-    copy_dir_recursive(rootfs, mount_point)
+    copy_dir_recursive(rootfs, mount_point);
+    fix_image(mount_point);
 
+    // umount mount_point
+    // umount(mount_point);
+
+    // // disconnect nbd device
+    // disconnect_nbd_device(&nbd_device);
 
 }
 
-fn copy_dir_recursive(src: &str, dst: &str) {
-    let mut src_path = Path::new(src).to_path_buf();
-    src_path.push("*");
-    let wild_src = src_path.as_os_str().to_str().unwrap();
-
-    let output = Command::new("sudo")
-                .args(&["bash", "-c"])
-                .arg(&format!("cp -r {} {}", wild_src, dst))
-                .output();
-
-    match output {
-        Ok(output) if output.status.success() => {
-            println!("Successfully copy dir from {}  to: {}", src, dst);
-        }
-        Ok(output) => {
-            let error_message = String::from_utf8_lossy(&output.stderr);
-            eprintln!("Failed copy dir: {}", error_message);
-            exit(1);
-        }
-        Err(err) => {
-            eprintln!("Command execution failed: {}", err);
-            exit(1);
-        }
-    }
-}
-
-fn find_first_unused_nbd() -> Option<String>{
-    // List all NBD devices
-    let all_nbd_devices = get_all_nbds().unwrap();
-    let active_nbd_devices = get_active_nbds().unwrap();
-    // Identify and return the first unused NBD device
-    for device in all_nbd_devices {
-        if !active_nbd_devices.contains(&device) {
-            return Some(device);
-        }
-    }
-    None
-}
-
-pub fn get_all_nbds() -> Option<Vec<String>> {
-    let all_nbd_output = Command::new("sh")
-        .arg("-c")
-        .arg("ls /dev/nbd* | grep -o '/dev/nbd[0-9]\\+' | uniq")
-        .output()
-        .ok()?;
-
-    let mut all_nbd_devices: Vec<String> = String::from_utf8(all_nbd_output.stdout).ok()?
-        .lines()
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    all_nbd_devices.sort_by(|a, b| {
-            let a_num = a.trim_start_matches("/dev/nbd").parse::<usize>().unwrap_or(usize::MAX);
-            let b_num = b.trim_start_matches("/dev/nbd").parse::<usize>().unwrap_or(usize::MAX);
-            a_num.cmp(&b_num)
-        });
-    
-    Some(all_nbd_devices)
-}
-
-pub fn get_active_nbds() -> Option<Vec<String>> {
-    // List currently active NBD devices
-    let active_nbd_output = Command::new("sh")
-        .arg("-c")
-        .arg("ps ax | grep -o 'nbd[0-9]\\+' | uniq")
-        .output()
-        .ok()?;
-
-    let active_nbd_devices: Vec<String> = String::from_utf8(active_nbd_output.stdout).ok()?
-        .lines()
-        .filter_map(|s| {
-            let name = s.trim();
-            if name.starts_with("nbd") {
-                Some(format!("/dev/{}", name))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Some(active_nbd_devices)
-}
-
-#[allow(dead_code)]
-pub fn get_unused_nbds() -> Option<Vec<String>> {
-    let all_nbd_devices = get_all_nbds().unwrap();
-    let active_nbd_devices = get_active_nbds().unwrap();
-    
-    let unused_ndb_devices = all_nbd_devices
-        .iter()
-        .filter(|s| !active_nbd_devices.contains(s))
-        .cloned()
-        .collect();
-
-    Some(unused_ndb_devices)
-}
-
-pub fn get_unique_file_name(image: &str) -> PathBuf  {
-    // Get the extension of the image
-    let original_path = Path::new(image);
-
-    let directory = original_path.parent().unwrap_or_else(|| Path::new(""));
-    let extension = original_path.extension().unwrap_or_default().to_str().unwrap_or("");
-
-    // Create a new base name without the extension
-    let base_name = original_path
-        .file_stem()
-        .unwrap_or_else(|| original_path.as_os_str())
-        .to_str()
-        .unwrap_or("");
-
-    // Check if the image already exists and create a new name if necessary
-    let mut image_path = original_path.to_path_buf();
-    let mut count = 1;
-
-    while image_path.exists() {
-        // Create a new image name with incrementing count
-        let new_image_name = format!("{}-{}.{extension}", base_name, count);
-        image_path = directory.join(new_image_name);
-        count += 1;
-    }
-
-    image_path
+// [TODO!]
+fn fix_image(_mount_point: &str) {
+    // Command
 }

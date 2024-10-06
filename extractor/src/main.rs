@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 mod extractor;
 mod generator;
 mod emulator;
+mod utils;
 use extractor::extract_firmware;
 use generator::generate_image;
 use emulator::run_emulation;
@@ -45,7 +46,12 @@ enum Commands {
         image: String,
     },
     /// test
-    Test {}
+    Test {},
+    /// clean
+    Clean {},
+    /// Umount
+    Umount
+
 }
 
 
@@ -72,6 +78,13 @@ fn main() {
         }
         Commands::Test {  } => {
             test_func();
+        }
+        Commands::Clean {  } => {
+            utils::umount_temp_images();
+            utils::disconnect_nbd_divices();
+        }
+        Commands::Umount {  } => {
+            utils::umount_temp_images();
         }
     }
 }
