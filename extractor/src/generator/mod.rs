@@ -198,6 +198,16 @@ pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
 }
 
 // [TODO!]
-fn fix_image(_mount_point: &str) {
-    // Command
+fn fix_image(mount_point: &str) {
+    // [TODO] 对符号链接进行处理， var -> ./tmp/
+    let var_run_path = Path::new(mount_point).join("var/run");
+    println!("var run path: {:?}", var_run_path);
+    // 检查目录是否存在
+    if !var_run_path.exists() {
+        // 创建目录（包括父目录）
+        mkdir_p(&var_run_path.as_os_str().to_string_lossy());
+        println!("Created directory: {:?}", var_run_path);
+    } else {
+        println!("Directory already exists: {:?}", var_run_path);
+    }
 }

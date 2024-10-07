@@ -132,7 +132,7 @@ pub fn get_unused_nbds() -> Option<Vec<String>> {
 
 pub fn umount(mount_point: &str) {
     let output = Command::new("sudo")
-            .args(&["umount", &mount_point])
+            .args(&["umount", mount_point])
             .output()
             .expect("Failed to execute command: umount");
 
@@ -140,7 +140,21 @@ pub fn umount(mount_point: &str) {
         eprintln!("Failed to umount: {}", String::from_utf8_lossy(&output.stderr));
         std::process::exit(1);
     } else {
-        println!("umount: {}", &mount_point);
+        println!("umount: {}", mount_point);
+    }
+}
+
+pub fn mkdir_p(directory: &str) {
+    let output = Command::new("sudo")
+            .args(&["mkdir", "-p", directory])
+            .output()
+            .expect("Failed to execute command: mkdir");
+
+    if !output.status.success() {
+        eprintln!("Failed to mkdir: {}", String::from_utf8_lossy(&output.stderr));
+        std::process::exit(1);
+    } else {
+        println!("mkdir: {}", directory);
     }
 }
 
