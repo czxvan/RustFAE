@@ -8,4 +8,4 @@ command = "cargo"
 args = ["install", "--path", "."]
 
 [tasks.all]
-depends = ["build", "install"]
+depends = ["build", "install"] 

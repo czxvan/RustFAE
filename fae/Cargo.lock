@@ -52,7 +52,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cargo-extract"
+name = "cargo-fae"
 version = "0.1.0"
 dependencies = [
  "clap",

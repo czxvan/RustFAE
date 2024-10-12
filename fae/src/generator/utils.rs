@@ -158,6 +158,44 @@ pub fn mkdir_p(directory: &str) {
     }
 }
 
+#[derive(Debug)]
+pub struct Device {
+    name: String,
+    device_type: String, // c or b
+    mode: u32,  // 权限模式
+    rdev: (u32, u32), // 主设备号和次设备号
+}
+
+impl Device {
+    pub fn new(name: &str, device_type: &str, mode: u32, rdev: (u32, u32)) -> Self {
+        Device {
+            name: name.to_string(),
+            device_type: device_type.to_string(),
+            mode,
+            rdev,
+        }
+    }
+
+    pub fn create(&self) {
+        // 使用 mknod 创建设备节点
+        let output = Command::new("sudo")
+            .arg("mknod")
+            .arg("-m").arg(self.mode.to_string())
+            .arg(&self.name)
+            .arg(&self.device_type)
+            .arg(self.rdev.0.to_string())
+            .arg(self.rdev.1.to_string())
+            .output()
+            .expect("Failed to create device node");
+
+        if !output.status.success() {
+            eprintln!("mknod {}: {}", self.name, String::from_utf8_lossy(&output.stderr));
+        } else {
+            println!("mknod: {}", self.name);
+        }
+    }
+}
+
 pub fn disconnect_nbd_device(nbd_device: &str) {
     let output = Command::new("sudo")
                 .args(&["qemu-nbd", "-d", nbd_device])
@@ -205,17 +243,17 @@ pub fn disconnect_nbd_divices() {
         .output()
         .expect("Failed to execute command: ps ax");
 
-        if !output.status.success() {
-            println!("There is no active nbd devices {}", String::from_utf8_lossy(&output.stderr));
-        } else {
-            println!("get active nbd devices: {}", String::from_utf8_lossy(&output.stdout));
-        }
-    
-        let active_nbd_devices: Vec<String> = String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(|s| s.trim().to_string())
-            .collect();
-        for nbd_device in active_nbd_devices {
-            disconnect_nbd_device(&nbd_device)
-        };
+    if !output.status.success() {
+        println!("There is no active nbd devices {}", String::from_utf8_lossy(&output.stderr));
+    } else {
+        println!("get active nbd devices: {}", String::from_utf8_lossy(&output.stdout));
+    }
+
+    let active_nbd_devices: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|s| s.trim().to_string())
+        .collect();
+    for nbd_device in active_nbd_devices {
+        disconnect_nbd_device(&nbd_device)
+    };
 }

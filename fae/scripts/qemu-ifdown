@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Script to bring down and delete bridge br0 when QEMU exits
+
+# Bring down eth0 and br0
+ip link set eth0 down
+ip link set br0 down
+
+# Delete the bridge
+ip link delete br0 type bridge
+
+# Bring up eth0 in "normal" mode
+ip link set eth0 promisc off
+ip link set eth0 up
+
+# Delete the tap device
+ip tuntap del dev "$1" mode tap

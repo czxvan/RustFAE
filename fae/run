@@ -1,0 +1,9 @@
+#! /bin/bash
+qemu-system-arm -M virt \
+    -kernel ../binaries/kernel/vmlinux.arm \
+    -hda ./image.qcow2 \
+    -m 1024M \
+    -nographic \
+    -serial stdio \
+    -append "root=/dev/sda1 rw init=preInit.sh" \
+    -nic tap,ifname=tap-qemu,script=no,downscript=no

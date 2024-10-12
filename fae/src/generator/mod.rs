@@ -1,14 +1,16 @@
-
 use std::process::{Command, exit};
 use std::path::Path;
 use std::fs;
 
 pub mod utils;
+mod image;
 use utils::*;
+use crate::utils::Arch;
 use crate::ImageType;
+use image::{fix_image, enhance_image};
 
 
-pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
+pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType, arch: &Arch) {
     // let image_path = get_unique_file_name(image);
     // let image = image_path.to_str().unwrap();
 
@@ -60,6 +62,8 @@ pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
     if let Err(err) = fs::create_dir_all(&mount_point) {
         eprintln!("create mount point failed: {}", err);
         exit(1);
+    } else {
+        println!("mount_point: {}", mount_point);
     }
 
     match image_type {
@@ -188,26 +192,12 @@ pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType) {
     // Copy files into the mounted image
     copy_dir_recursive(rootfs, mount_point);
     fix_image(mount_point);
+    enhance_image(mount_point, arch);
 
     // umount mount_point
-    // umount(mount_point);
+    umount(mount_point);
 
-    // // disconnect nbd device
-    // disconnect_nbd_device(&nbd_device);
+    // disconnect nbd device
+    disconnect_nbd_device(&nbd_device);
 
-}
-
-// [TODO!]
-fn fix_image(mount_point: &str) {
-    // [TODO] 对符号链接进行处理， var -> ./tmp/
-    let var_run_path = Path::new(mount_point).join("var/run");
-    println!("var run path: {:?}", var_run_path);
-    // 检查目录是否存在
-    if !var_run_path.exists() {
-        // 创建目录（包括父目录）
-        mkdir_p(&var_run_path.as_os_str().to_string_lossy());
-        println!("Created directory: {:?}", var_run_path);
-    } else {
-        println!("Directory already exists: {:?}", var_run_path);
-    }
 }

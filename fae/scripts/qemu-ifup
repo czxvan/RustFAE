@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Script to bring up the tun device in QEMU in bridged mode
+# First parameter is name of tap device (e.g. tap0)
+
+# Some constants specific to the local host - change to suit your host
+ETH0IPADDR=192.168.0.3
+MASK=255.255.255.0
+GATEWAY=192.168.0.1
+BROADCAST=192.168.0.255
+
+# First take eth0 down, then bring it up with IP address 0.0.0.0
+ip link set eth0 down
+ip addr flush dev eth0
+ip link set eth0 up promisc on
+
+# Bring up the tap device (name specified as first argument, by QEMU)
+ip tuntap add dev "$1" mode tap user "$(id -un)"
+ip link set "$1" up promisc on
+
+# Create the bridge between eth0 and the tap device
+ip link add name br0 type bridge
+ip link set eth0 master br0
+ip link set "$1" master br0
+
+# Only a single bridge so loops are not possible, turn off spanning tree protocol
+# (Note: This is the default behavior in many cases, but can be explicitly set)
+ip link set br0 type bridge stp_state 0
+
+# Bring up the bridge with ETH0IPADDR and add the default route
+ip addr add "$ETH0IPADDR/$MASK" broadcast "$BROADCAST" dev br0
+ip link set br0 up
+ip route add default via "$GATEWAY"

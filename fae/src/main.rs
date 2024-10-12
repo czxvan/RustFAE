@@ -7,7 +7,7 @@ mod utils;
 use extractor::extract_firmware;
 use generator::generate_image;
 use emulator::run_emulation;
-
+use utils::{Arch, ImageType};
 
 #[derive(Parser)]
 #[command(name = "firmware_tool")]
@@ -34,32 +34,41 @@ enum Commands {
     /// generate image according to root filesystem
     Generate {
         /// root filesystem extracted from firmware
-        #[arg(short, long)]
         rootfs: String,
         /// qcow2 or raw image used to run emulation
-        #[arg(short, long)]
         image: String,
+        /// image type qcow2 or raw
+        type_image: ImageType,
+        /// arch: arm, mips, mipsel
+        arch: Arch,
+
     },
     /// run emulation for the firmware
     Emulate {
         /// image regarded as root filesystem, qcow2 or raw image
         image: String,
+        arch: Arch,
+    },
+    /// generate and emulate
+    GenerateAndEmulate {
+        /// root filesystem extracted from firmware
+        rootfs: String,
+        /// qcow2 or raw image used to run emulation
+        image: String,
+        /// image type qcow2 or raw
+        type_image: ImageType,
+        /// architecture: arm mips mipsel
+        arch: Arch,
     },
     /// test
-    Test {},
+    Test {
+        input: String
+    },
     /// clean
     Clean {},
     /// Umount
     Umount
 
-}
-
-
-
-enum ImageType {
-    Qcow2,
-    #[allow(dead_code)]
-    Raw
 }
 
 
@@ -70,14 +79,18 @@ fn main() {
         Commands::Extract { firmware, directory } => {
             extract_firmware(firmware, directory);
         }
-        Commands::Generate { rootfs, image} => {
-            generate_image(rootfs, image, &ImageType::Qcow2);
+        Commands::Generate { rootfs, image, type_image, arch} => {
+            generate_image(rootfs, image, type_image, arch);
         }
-        Commands::Emulate { image } => {
-            run_emulation(image);
+        Commands::Emulate { image, arch} => {
+            run_emulation(image, arch);
         }
-        Commands::Test {  } => {
-            test_func();
+        Commands::GenerateAndEmulate {rootfs, image, type_image, arch} => {
+            generate_image(rootfs, image, type_image, arch);
+            run_emulation(image, arch);
+        }
+        Commands::Test { input } => {
+            println!("{}", test_func(&input));
         }
         Commands::Clean {  } => {
             utils::umount_temp_images();
@@ -89,9 +102,8 @@ fn main() {
     }
 }
 
-use std::env;
-fn test_func () {
-    // 获取当前工作目录
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    println!("Current directory: {:?}", current_dir);
+use std::path::Path;
+fn test_func(_path: &str) -> String {
+    let path = Path::new("../outputs/_R6300v2_V1.0.2.72_1.0.46.bin.extracted/squashfs-root/bin");
+    path.canonicalize().unwrap().to_string_lossy().into_owned()
 }
