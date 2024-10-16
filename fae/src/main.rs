@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-
+use serde::{Deserialize, Serialize};
 mod extractor;
 mod generator;
 mod emulator;
@@ -7,7 +7,7 @@ mod utils;
 use extractor::extract_firmware;
 use generator::generate_image;
 use emulator::run_emulation;
-use utils::{Arch, ImageType};
+use utils::*;
 
 #[derive(Parser)]
 #[command(name = "firmware_tool")]
@@ -16,11 +16,11 @@ use utils::{Arch, ImageType};
 #[command(about = "用于提取和模拟固件的工具")]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Command,
 }
 
-#[derive(Subcommand)]
-enum Commands {
+#[derive(Debug, Subcommand, Deserialize, Serialize,)]
+enum Command {
     /// extract root filesystem from .bin firmware
     Extract {
         /// The firmware to be extracted
@@ -41,7 +41,6 @@ enum Commands {
         type_image: ImageType,
         /// arch: arm, mips, mipsel
         arch: Arch,
-
     },
     /// run emulation for the firmware
     Emulate {
@@ -62,48 +61,83 @@ enum Commands {
     },
     /// test
     Test {
-        input: String
+        input: String,
     },
     /// clean
     Clean {},
     /// Umount
-    Umount
+    Umount,
+    /// run tasks according to task file
+    RunTasks {
+        /// 
+        task_file: String,
+    },
 
 }
-
 
 fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Extract { firmware, directory } => {
+        Command::Extract { firmware, directory } => {
             extract_firmware(firmware, directory);
         }
-        Commands::Generate { rootfs, image, type_image, arch} => {
+        Command::Generate { rootfs, image, type_image, arch} => {
             generate_image(rootfs, image, type_image, arch);
         }
-        Commands::Emulate { image, arch} => {
+        Command::Emulate { image, arch} => {
             run_emulation(image, arch);
         }
-        Commands::GenerateAndEmulate {rootfs, image, type_image, arch} => {
+        Command::GenerateAndEmulate {rootfs, image, type_image, arch} => {
             generate_image(rootfs, image, type_image, arch);
             run_emulation(image, arch);
         }
-        Commands::Test { input } => {
+        Command::RunTasks { task_file } => {
+            println!("Run task: {}", task_file);
+            run_tasks(task_file);
+
+        }
+        Command::Test { input } => {
             println!("{}", test_func(&input));
         }
-        Commands::Clean {  } => {
+        Command::Clean {  } => {
             utils::umount_temp_images();
             utils::disconnect_nbd_divices();
         }
-        Commands::Umount {  } => {
+        Command::Umount {  } => {
             utils::umount_temp_images();
         }
     }
 }
 
-use std::path::Path;
+
+// use std::path::Path;
 fn test_func(_path: &str) -> String {
-    let path = Path::new("../outputs/_R6300v2_V1.0.2.72_1.0.46.bin.extracted/squashfs-root/bin");
-    path.canonicalize().unwrap().to_string_lossy().into_owned()
+    let tasks: Tasks = Tasks {
+        extract: Some(Extract { firmware: "czx".to_string() , directory: "czx".to_string() }),
+        generate: None,
+        emulate: Some(Emulate { image: "czx".to_string(), arch: Arch::Arm }),    
+    };
+
+    let toml_string = toml::to_string(&tasks).expect("Failed to serialize config");
+    toml_string
+}
+
+fn run_tasks(task_file: &str) {
+    let config_content  = std::fs::read_to_string(task_file).expect("Failed to read task file");
+    let tasks: Tasks = toml::de::from_str(&config_content).expect("Unable to parse TOML");
+    
+    if let Some(Extract {firmware, directory}) = &tasks.extract {
+        println!("Extracting firmware {} to directory {}", firmware, directory);
+        extract_firmware(firmware, directory);
+    }
+    if let Some(Generate {rootfs, image,type_image, arch}) = &tasks.generate {
+        println!("Generating firmware {} for architecture {:?}", image, arch);
+        generate_image(rootfs, image, type_image, arch);
+    }
+    if let Some(Emulate {image, arch}) = &tasks.emulate {
+        println!("Emulating firmware {} on architecture {:?}", image, arch);
+        run_emulation(image, arch);
+    }
+
 }

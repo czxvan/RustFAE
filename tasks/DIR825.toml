@@ -1,0 +1,13 @@
+# [extract]
+# firmware = "../firmwares/DIR825B1_FW201EUB15.bin"
+# directory = "../outputs"
+
+[generate]
+rootfs = "../outputs/_DIR825B1_FW201EUB15.bin.extracted/squashfs-root"
+image = "../outputs/_DIR825B1_FW201EUB15.bin.extracted/image.qcow2"
+type_image = "Qcow2"
+arch = "Mips"
+
+[emulate]
+image = "../outputs/_DIR825B1_FW201EUB15.bin.extracted/image.qcow2"
+arch = "Mips"

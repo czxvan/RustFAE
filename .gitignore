@@ -1,3 +1,5 @@
 outputs/
 *.qcow2
 target/
+temp_image
+tmp/

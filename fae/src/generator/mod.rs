@@ -14,6 +14,12 @@ pub fn generate_image(rootfs: &str, image: &str, image_type: &ImageType, arch: &
     // let image_path = get_unique_file_name(image);
     // let image = image_path.to_str().unwrap();
 
+    // load nbd module
+    if Command::new("sudo").args(&["modprobe", "nbd"]).output().is_err() {
+        eprintln!("modprobe is not installed. Please install it and try again.");
+        exit(1);
+    }
+
     let nbd_device = find_first_unused_nbd()
                 .expect("Failed to find any unused nbd device!");
 

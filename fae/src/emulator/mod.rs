@@ -9,21 +9,25 @@ pub fn run_emulation(image: &str, arch: &Arch) {
     let kernel;
     let qemu;
     let machine;
+    let root_device;
     match arch {
         Arch::Arm => {
             qemu = "qemu-system-arm";
-            kernel = "../binaries/kernel/vmlinux.arm";
+            kernel = "../binaries/kernel/zImage.arm";
             machine = "virt";
+            root_device = "";
         }
         Arch::Mips => {
             qemu = "qemu-system-mips";
-            kernel = "../binaries/kernel/vmlinux.mips.2";
+            kernel = "../binaries/kernel/vmlinux.mips.3.2.0.malta";
             machine = "malta";
+            root_device = "/dev/sda1";
         }
         Arch::Mipsel => {
             qemu = "qemu-system-mipsel";
             kernel = "../binaries/kernel/vmlinux.mipsel.4";
             machine = "";
+            root_device = "";
         }
     }
 
@@ -35,7 +39,7 @@ pub fn run_emulation(image: &str, arch: &Arch) {
             "-hda", image,
             "-m", "256M",
             "-nographic",
-            "-append", "root=/dev/sda1 rw init=preInit.sh",
+            "-append", &format!("root={} rw init=preInit.sh", root_device), // sda1 /dev/mmcblk0
             "-nic", "tap,ifname=tap-qemu,script=no,downscript=no"
         ])
         .stdin(Stdio::inherit()) // 允许向 QEMU 发送输入
