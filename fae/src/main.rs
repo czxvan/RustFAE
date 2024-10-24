@@ -47,6 +47,8 @@ enum Command {
         /// image regarded as root filesystem, qcow2 or raw image
         image: String,
         arch: Arch,
+        #[arg(default_value_t = false)]
+        debug: bool,
     },
     /// generate and emulate
     GenerateAndEmulate {
@@ -58,6 +60,8 @@ enum Command {
         type_image: ImageType,
         /// architecture: arm mips mipsel
         arch: Arch,
+        #[arg(default_value_t = false)]
+        debug: bool,
     },
     /// test
     Test {
@@ -85,12 +89,12 @@ fn main() {
         Command::Generate { rootfs, image, type_image, arch} => {
             generate_image(rootfs, image, type_image, arch);
         }
-        Command::Emulate { image, arch} => {
-            run_emulation(image, arch);
+        Command::Emulate { image, arch, debug} => {
+            run_emulation(image, arch, debug);
         }
-        Command::GenerateAndEmulate {rootfs, image, type_image, arch} => {
+        Command::GenerateAndEmulate {rootfs, image, type_image, arch, debug} => {
             generate_image(rootfs, image, type_image, arch);
-            run_emulation(image, arch);
+            run_emulation(image, arch, debug);
         }
         Command::RunTasks { task_file } => {
             println!("Run task: {}", task_file);
@@ -116,7 +120,7 @@ fn test_func(_path: &str) -> String {
     let tasks: Tasks = Tasks {
         extract: Some(Extract { firmware: "czx".to_string() , directory: "czx".to_string() }),
         generate: None,
-        emulate: Some(Emulate { image: "czx".to_string(), arch: Arch::Arm }),    
+        emulate: Some(Emulate { image: "czx".to_string(), arch: Arch::Arm, debug: true }),    
     };
 
     let toml_string = toml::to_string(&tasks).expect("Failed to serialize config");
@@ -135,9 +139,9 @@ fn run_tasks(task_file: &str) {
         println!("Generating firmware {} for architecture {:?}", image, arch);
         generate_image(rootfs, image, type_image, arch);
     }
-    if let Some(Emulate {image, arch}) = &tasks.emulate {
+    if let Some(Emulate {image, arch, debug}) = &tasks.emulate {
         println!("Emulating firmware {} on architecture {:?}", image, arch);
-        run_emulation(image, arch);
+        run_emulation(image, arch, debug);
     }
 
 }

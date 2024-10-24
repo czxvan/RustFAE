@@ -2,7 +2,7 @@ use std::process::Command;
 use std::path::{Path, PathBuf};
 use crate::utils::Arch;
 
-use super::utils::{mkdir_p, Device};
+use super::utils::{mkdir_p, Device, find_first_unused_nbd};
 
 fn merge_paths(base: &str, relative: &str) -> PathBuf {
     let base_path = Path::new(base);
@@ -31,6 +31,169 @@ fn resolve_link(path: &str) -> String {
             return input_path.to_string_lossy().into_owned();
         }
     }
+}
+
+pub fn create_image(image_type_str: &str, image: &str) {
+    let output =  Command::new("qemu-img")
+            .arg("create")
+            .arg("-f")
+            .arg(image_type_str)
+            .arg(image)
+            .arg("1G")
+            .output();
+    match output {
+        Ok(output) if output.status.success() => {
+            println!("Successfully created image: {}", image);
+        }
+        Ok(output) => {
+            let error_message = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Failed to create image: {}", error_message);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Command execution failed: {}", err);
+            std::process::exit(1);
+        }
+    };
+}
+
+pub fn create_mount_point(image: &str) -> String {
+    let image_path = Path::new(image);
+    let mount_point_path = image_path.parent().unwrap().join("temp_image");
+    let mount_point = mount_point_path.as_os_str().to_str().unwrap();
+    if let Err(err) = std::fs::create_dir_all(&mount_point) {
+        eprintln!("create mount point failed: {}", err);
+        std::process::exit(1);
+    } else {
+        println!("mount_point: {}", mount_point);
+    }
+    mount_point.to_string()
+}
+
+pub fn mount_qcow2_image(image: &str, mount_point: &str) -> String {
+    let output = Command::new("sudo")
+                                    .args(&["modprobe", "nbd"]).output();
+    match output {
+        Ok(output) if output.status.success() => {
+            println!("Successfully loaded nbd module.");
+        }
+        Ok(output) => {
+            let error_message = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Failed to load nbd module: {}", error_message);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Command execution failed: {}", err);
+            std::process::exit(1);
+        }
+    }
+
+    let nbd_device = find_first_unused_nbd()
+        .expect("Failed to find any unused nbd device!");
+    println!("nbd_device: {}", &nbd_device);
+
+    // Connect image with an nbd device
+    let output = Command::new("sudo")
+        .args(&["qemu-nbd", "-c", &nbd_device, image])
+        .output();
+    match output {
+        Ok(output) if output.status.success() => {
+            println!("Successfully connect image with nbd device: {}", &nbd_device)
+        }
+        Ok(output) => {
+            let error_message = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Failed to connect image with nbd device: {}", error_message);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Command execution failed: {}", err);
+            std::process::exit(1);
+        }
+    }
+
+    // Create partition for nbd device, must be bash not sh
+    // must use dos rather than gpt partition
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(format!("echo -e 'o\\nn\\np\\n1\\n\\n\\nw' | sudo fdisk {}", &nbd_device))
+        .output();
+    match output {
+        Ok(output) if output.status.success() => {
+            println!("Successfully created partition for nbd device.");
+        }
+        Ok(output) => {
+            let error_message = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Failed to create partition for nbd device: {}", error_message);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Command execution failed: {}", err);
+            std::process::exit(1);
+        }
+    }
+    
+    // Make file system for partition 1 of the nbd device
+    // better to use ext2, ext4 may fail when boot with qemu
+    let output = Command::new("sudo")
+        .args(&["mkfs.ext2", &format!("{}p1", &nbd_device)])
+        .output();
+    match output {
+        Ok(output) if output.status.success() => {
+            println!("Successfully mkfs.ext4 for {}p1", &nbd_device);
+        }
+        Ok(output) => {
+            let error_message = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Failed to make file system for partition 1 of the nbd device: {}", error_message);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Command execution failed: {}", err);
+            std::process::exit(1);
+        }
+    }
+
+    // Mount device to mount_point
+    let output = Command::new("sudo")
+        .args(&["mount", &format!("{}p1", &nbd_device), mount_point])
+        .output();
+    match output {
+        Ok(output) if output.status.success() => {
+            println!("Successfully mounted device to: {}", mount_point);
+        }
+        Ok(output) => {
+            let error_message = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Failed to mount device to {}: {}", mount_point, error_message);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Command execution failed: {}", err);
+            std::process::exit(1);
+        }
+    }
+
+    nbd_device
+}
+
+pub fn mount_raw_image(image: &str, mount_point: &str) -> String {
+    let output = Command::new("sudo")
+                .args(&["mount", "-o", "loop", image, mount_point])
+                .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            println!("Successfully mounted image: {}", image);
+        }
+        Ok(output) => {
+            let error_message = String::from_utf8_lossy(&output.stderr);
+            eprintln!("Failed to mount image: {}", error_message);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Command execution failed: {}", err);
+            std::process::exit(1);
+        }
+    }
+    "todo".to_string()
 }
 
 pub fn fix_image(mount_point: &str) {

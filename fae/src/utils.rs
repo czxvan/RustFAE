@@ -73,6 +73,7 @@ pub struct Emulate {
     /// image regarded as root filesystem, qcow2 or raw image
     pub image: String,
     pub arch: Arch,
+    pub debug: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

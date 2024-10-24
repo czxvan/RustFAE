@@ -1,0 +1,14 @@
+# [extract]
+# firmware = "../firmwares/arm/DIR825B1_FW201EUB15.bin"
+# directory = "../outputs"
+
+# [generate]
+# rootfs = "../outputs/_R6300v2_V1.0.2.72_1.0.46.bin.extracted/squashfs-root"
+# image = "../outputs/_R6300v2_V1.0.2.72_1.0.46.bin.extracted/image.qcow2"
+# type_image = "Qcow2"
+# arch = "Arm"
+
+[emulate]
+image = "../outputs/_R6300v2_V1.0.2.72_1.0.46.bin.extracted/image.qcow2"
+arch = "Arm"
+debug = false

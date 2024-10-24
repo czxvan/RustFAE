@@ -1,3 +1,0 @@
-[extract]
-firmware = "../firmwares/DIR882A1_FW110B02.bin"
-directory = "../outputs"
